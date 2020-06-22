@@ -6,10 +6,12 @@ sys.path.append('../envs')
 from pointbot import *
 import matplotlib.pyplot as plt
 import scipy.linalg as la
+from scipy.spatial import ConvexHull, convex_hull_plot_2d
 
 class Node():
 	"""RRT nodes"""
 	def __init__(self, state=None):
+		self.state_arr = []
 		self.state = state
 		self.prev_action = []
 		self.parent = None
@@ -20,11 +22,12 @@ class Node():
 
 class RRT(Node):
 	"""Class for Rapid Random Tree methods"""
-	def __init__(self, env, mode):
+	def __init__(self, env, mode, n_states):
 		super(RRT, self).__init__()
 		self.env = env
 		self.mode = mode
 		self.node_arr = []
+		self.n_states = n_states
 
 	def sample_random(self):
 		# randomly sample a point in the observation space
@@ -90,7 +93,7 @@ class RRT(Node):
 			
 			# get lqr gains
 			Q=np.eye(n)
-			R=10*np.eye(d)
+			R=50*np.eye(d)
 			A=self.env.A
 			B=self.env.B
 			P = la.solve_discrete_are(A, B, Q, R)
@@ -100,10 +103,13 @@ class RRT(Node):
 			start_state = self.node_arr[from_node].state
 			goal_state = to_node.state
 			u_star = np.dot(Ks, (start_state - goal_state))
+			u_star = np.clip(u_star,-1,1)
 
 			# obtain new node
 			new_node = Node()
-			new_node.state = self.env._next_state(start_state, u_star)
+			for i in range(self.n_states):
+				new_node.state_arr.append(self.env._next_state(start_state, u_star))
+			new_node.state = sum(new_node.state_arr)/len(new_node.state_arr)
 			new_node.parent = self.node_arr[from_node]
  
 		return new_node		
@@ -135,19 +141,29 @@ class RRT(Node):
 			plt.pause(0.01)
 
 	def plot_final_traj(self):
+		plt.cla()
 		x = []
 		y = []
 		current_node = self.node_arr[-1]
 		x.append(current_node.state[0])
 		y.append(current_node.state[2])
+		points = [[state[0], state[2]] for state in current_node.state_arr]
+		points = np.array(points)
+		hull = ConvexHull(points)
+		for simplex in hull.simplices:
+			plt.plot(points[simplex,0], points[simplex,1], 'r-')
 
 		while not current_node.parent == None:
 			x.append(current_node.parent.state[0])
 			y.append(current_node.parent.state[2])
+			points = [[state[0], state[2]] for state in current_node.state_arr]
+			points = np.array(points)
+			hull = ConvexHull(points)
+			for simplex in hull.simplices:
+				plt.plot(points[simplex,0], points[simplex,1], 'r-')
 			current_node = current_node.parent
 
-		plt.cla()
-		plt.plot(x,y, color='blue')
+		plt.plot(x,y, color='blue', marker='o')
 		plt.show()
 
 	def rewire(self):
@@ -155,8 +171,8 @@ class RRT(Node):
 
 if __name__ == '__main__':
 	env = PointBot()
-	tree = RRT(env=env, mode='lqr')
-	start_config = Node(state = np.array([-10,0,0,0]))
+	tree = RRT(env=env, mode='lqr', n_states=20)
+	start_config = Node(state = np.array([-5,0,0,0]))
 	goal_config = Node(state = np.array([0,0,0,0]))
 	tree.build_tree(start_node=start_config, goal_node=goal_config)
 	tree.plot_final_traj()

@@ -14,6 +14,7 @@ class Node():
 		self.state_arr = []
 		self.state = state
 		self.prev_action = []
+		self.cost = 0
 		self.parent = None
 
 	def _is_goal(self, goal, d_thresh=0.5):
@@ -22,12 +23,13 @@ class Node():
 
 class RRT(Node):
 	"""Class for Rapid Random Tree methods"""
-	def __init__(self, env, mode, n_states):
+	def __init__(self, env, mode, n_states, rewire=False):
 		super(RRT, self).__init__()
 		self.env = env
 		self.mode = mode
 		self.node_arr = []
 		self.n_states = n_states
+		self.rewire = rewire
 
 	def sample_random(self):
 		# randomly sample a point in the observation space
@@ -107,10 +109,15 @@ class RRT(Node):
 
 			# obtain new node
 			new_node = Node()
+			if len(self.node_arr[from_node].state_arr) == 0:
+				self.node_arr[from_node].state_arr.append(start_state)
+
+			# for j in range(len(self.node_arr[from_node].state_arr)):
 			for i in range(self.n_states):
 				new_node.state_arr.append(self.env._next_state(start_state, u_star))
 			new_node.state = sum(new_node.state_arr)/len(new_node.state_arr)
 			new_node.parent = self.node_arr[from_node]
+			new_node.cost = self.node_arr[from_node].cost + 1
  
 		return new_node		
 
@@ -120,7 +127,6 @@ class RRT(Node):
 	def build_tree(self, start_node, goal_node=None):
 		# initialize tree with starting node
 		self.node_arr.append(start_node)
-		print(self.node_arr[-1].state)
 		# while goal not reached or fixed number of nodes
 		while not self.node_arr[-1]._is_goal(goal_node.state):
 			# randomly sample point in the observation space
@@ -130,6 +136,8 @@ class RRT(Node):
 			nearest_node = self.node_arr[nearest_node_index]
 			# plan to the sampled node and add each node to the tree
 			new_node = self.steer(from_node=nearest_node_index, to_node=rnd_sample)
+			if self.rewire:
+				self.rewire_tree(new_node)
 			self.node_arr.append(new_node)
 			plt.cla()
 			for node in self.node_arr:
@@ -166,12 +174,28 @@ class RRT(Node):
 		plt.plot(x,y, color='blue', marker='o')
 		plt.show()
 
-	def rewire(self):
-		pass
+	def find_near_nodes(self, node):
+		thresh = 0.1
+		near_indices = []
+		for i in range(len(self.node_arr)):
+			dist = self.get_dist(self.node_arr[i], node)
+			if dist <= thresh:
+				near_indices.append(i)
+		return near_indices
+
+	def rewire_tree(self, node):
+		# find neighbouring nodes
+		neighbours = self.find_near_nodes(node)
+		# choose the best node to join the last node
+		for i in range(len(neighbours)):
+			if self.node_arr[i].cost + 1 < node.cost:
+				node.cost = self.node_arr[i].cost + 1
+				# change the last node parent
+				node.parent = self.node_arr[i]
 
 if __name__ == '__main__':
 	env = PointBot()
-	tree = RRT(env=env, mode='lqr', n_states=20)
+	tree = RRT(env=env, mode='lqr', n_states=5, rewire=False)
 	start_config = Node(state = np.array([-5,0,0,0]))
 	goal_config = Node(state = np.array([0,0,0,0]))
 	tree.build_tree(start_node=start_config, goal_node=goal_config)

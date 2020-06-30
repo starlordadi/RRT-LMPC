@@ -18,7 +18,6 @@ class Node():
 		self.parent = None
 
 	def _is_goal(self, goal, d_thresh=0.5):
-		print(np.linalg.norm(self.state[:3:2] - goal[:3:2]))
 		return (np.linalg.norm(self.state[:3:2] - goal[:3:2]) <= d_thresh)
 
 class RRT(Node):
@@ -44,7 +43,7 @@ class RRT(Node):
 		return near_node_ind
 	
 	def get_dist(self, node1, node2):
-		dist = np.linalg.norm(node1.state - node2.state)
+		dist = np.linalg.norm(node1.state[::2] - node2.state[::2])
 		return np.round(dist, decimals=3)	
 
 	def steer(self, from_node, to_node):
@@ -136,9 +135,11 @@ class RRT(Node):
 			nearest_node = self.node_arr[nearest_node_index]
 			# plan to the sampled node and add each node to the tree
 			new_node = self.steer(from_node=nearest_node_index, to_node=rnd_sample)
+			# print('orig', new_node.parent.state)
 			if self.rewire:
 				self.rewire_tree(new_node)
 			self.node_arr.append(new_node)
+			# print('final', new_node.parent.state)
 			plt.cla()
 			for node in self.node_arr:
 				if node.parent == None:
@@ -146,6 +147,7 @@ class RRT(Node):
 				x = [node.state[0], node.parent.state[0]]
 				y = [node.state[2], node.parent.state[2]]
 				plt.plot(x,y, color='blue')
+				plt.plot(rnd_sample.state[0], rnd_sample.state[2], 'ro')
 			plt.pause(0.01)
 
 	def plot_final_traj(self):
@@ -175,7 +177,7 @@ class RRT(Node):
 		plt.show()
 
 	def find_near_nodes(self, node):
-		thresh = 0.1
+		thresh = 0.01
 		near_indices = []
 		for i in range(len(self.node_arr)):
 			dist = self.get_dist(self.node_arr[i], node)
@@ -188,15 +190,15 @@ class RRT(Node):
 		neighbours = self.find_near_nodes(node)
 		# choose the best node to join the last node
 		for i in range(len(neighbours)):
-			if self.node_arr[i].cost + 1 < node.cost:
-				node.cost = self.node_arr[i].cost + 1
+			if self.node_arr[neighbours[i]].cost + 1 < node.cost:
+				node.cost = self.node_arr[neighbours[i]].cost + 1
 				# change the last node parent
-				node.parent = self.node_arr[i]
+				node.parent = self.node_arr[neighbours[i]]
 
 if __name__ == '__main__':
 	env = PointBot()
-	tree = RRT(env=env, mode='lqr', n_states=5, rewire=False)
-	start_config = Node(state = np.array([-5,0,0,0]))
+	tree = RRT(env=env, mode='lqr', n_states=5, rewire=True)
+	start_config = Node(state = np.array([-10,0,0,0]))
 	goal_config = Node(state = np.array([0,0,0,0]))
 	tree.build_tree(start_node=start_config, goal_node=goal_config)
 	tree.plot_final_traj()

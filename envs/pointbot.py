@@ -44,7 +44,8 @@ class PointBot(Env, utils.EzPickle):
         self.B = np.array([[0,0], [1,0], [0,0], [0,1]])
         self.horizon = HORIZON
         self.action_space = Box(-np.ones(2) * MAX_FORCE, np.ones(2) * MAX_FORCE)
-        self.observation_space = Box(-np.ones(4) * np.float('inf'), np.ones(4) * np.float('inf'))
+        # self.observation_space = Box(-np.ones(4) * np.float('inf'), np.ones(4) * np.float('inf'))
+        self.observation_space = Box(-np.ones(4) * np.float(10), np.ones(4) * np.float(10))
         self.start_state = START_STATE
         self.name = "pointbot"
         self.env_name = 'PointBot-v0'
